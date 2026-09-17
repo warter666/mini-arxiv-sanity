@@ -7,6 +7,7 @@ papers by cosine similarity to it.
 """
 
 import math
+import re
 from collections import Counter
 
 from .store import Paper, Store
@@ -20,7 +21,7 @@ STOPWORDS = {
 
 
 def tokenize(text):
-    return [t for t in __import__("re").findall(TOKEN_RE, text.lower())
+    return [t for t in re.findall(TOKEN_RE, text.lower())
             if t not in STOPWORDS]
 
 
@@ -63,8 +64,16 @@ class TfIdfIndex:
 class Recommender:
     def __init__(self, store: Store):
         self.store = store
+        self._sig = None
 
     def _index(self):
+        # rebuild only when the corpus or votes changed
+        n_papers = self.store.conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
+        n_votes = len(self.store.upvoted_ids())
+        sig = (n_papers, n_votes)
+        if sig == self._sig:
+            return
+        self._sig = sig
         self.papers = list(self.store.all_papers())
         self.index = TfIdfIndex(self.papers)
         self.id_to_i = {p.arxiv_id: i for i, p in enumerate(self.papers)}
