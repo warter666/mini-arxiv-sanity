@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from minisanity.api import make_app
 from minisanity.recommend import TfIdfIndex, tokenize
 from minisanity.sources import FixtureSource
-from minisanity.store import Store
+from minisanity.store import Paper, Store
 
 
 def make_client():
@@ -42,6 +42,33 @@ def test_recommend_lears_interest():
     assert d["mode"] == "recommended" and len(d["papers"]) == 3
 
 
+def test_index_cache_invalidated_on_paper_revision():
+    """v2 revision (same arxiv_id, new abstract) must refresh the tf-idf index."""
+    from minisanity.recommend import Recommender
+    from minisanity.sources import FixtureSource
+
+    store = Store()
+    for p in FixtureSource().fetch():
+        store.upsert_paper(p)
+    rec = Recommender(store)
+    store.vote("2401.00001", True)  # interest: NLP / language models
+    store.vote("2401.00005", True)
+
+    rec.recommend(k=5)  # warm the cache
+    s_before = {r["paper"]["arxiv_id"]: r["score"] for r in rec.recommend(k=5)}
+    assert s_before["2401.00002"] > 0  # Attention paper matches the LM centroid
+
+    # 2401.00002 "revised": abstract rewritten as a vision paper
+    store.upsert_paper(Paper("2401.00002", "Attention Is All You Need",
+                             "residual convolutional networks for visual "
+                             "recognition of images", ["Vaswani"], ["cs.CL"]))
+    s_after = {r["paper"]["arxiv_id"]: r["score"] for r in rec.recommend(k=5)}
+    # stale cache would return the identical score; the fix rebuilds the index
+    # so the revised paper no longer matches the LM centroid
+    assert s_after["2401.00002"] < s_before["2401.00002"], \
+        (s_before["2401.00002"], s_after["2401.00002"])
+
+
 def test_similar():
     c = make_client()
     c.post("/refresh")
@@ -72,6 +99,7 @@ def test_cosine_sanity():
 if __name__ == "__main__":
     test_refresh_and_papers()
     test_recommend_lears_interest()
+    test_index_cache_invalidated_on_paper_revision()
     test_similar()
     test_vote_unknown_404()
     test_tokenize_stops_words()

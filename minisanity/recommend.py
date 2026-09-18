@@ -67,10 +67,13 @@ class Recommender:
         self._sig = None
 
     def _index(self):
-        # rebuild only when the corpus or votes changed
-        n_papers = self.store.conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
-        n_votes = len(self.store.upvoted_ids())
-        sig = (n_papers, n_votes)
+        # rebuild only when the corpus changed; the content fingerprint catches
+        # in-place revisions (same arxiv_id, new abstract — e.g. arXiv v2),
+        # which keep the paper count unchanged (see issue #1)
+        row = self.store.conn.execute(
+            "SELECT COUNT(*), COALESCE(SUM(length(title) + length(abstract)), 0) "
+            "FROM papers").fetchone()
+        sig = (row[0], row[1])
         if sig == self._sig:
             return
         self._sig = sig
