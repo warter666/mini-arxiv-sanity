@@ -1,5 +1,7 @@
 # minisanity — arxiv-sanity-lite 重写
 
+[![CI](https://github.com/warter666/mini-arxiv-sanity/actions/workflows/ci.yml/badge.svg)](https://github.com/warter666/mini-arxiv-sanity/actions/workflows/ci.yml)
+
 参照 [karpathy/arxiv-sanity-lite](https://github.com/karpathy/arxiv-sanity-lite)（1.7k★）的重写版：
 追踪 arXiv 新论文、点赞、按个人兴趣推荐。
 
